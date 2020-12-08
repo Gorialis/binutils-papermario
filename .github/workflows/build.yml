@@ -1,0 +1,52 @@
+name: Compile cc1
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.TARGET.OS }}
+    strategy:
+      fail-fast: false
+      matrix:
+        TARGET:
+          - {
+              OS: 'ubuntu-latest',
+              CFLAGS: '-std=gnu89 -static -g -O2',
+              LDFLAGS: '-static',
+              HOST: 'i386-pc-linux'
+            }
+
+    name: Building cc1 for ${{ matrix.TARGET.OS }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies (Ubuntu)
+        shell: bash
+        if: matrix.TARGET.OS == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bison flex file gcc-multilib gperf
+
+      - name: Configure
+        shell: bash
+        run: |
+          ./configure --target=mips-nintendo-nu64 --prefix=/opt/cross --disable-gprof --disable-gdb --disable-werror --host=${{ matrix.TARGET.HOST }} --build=${{ matrix.TARGET.HOST }}
+
+      - name: Make
+        shell: bash
+        run: |
+          make CFLAGS="${{ matrix.TARGET.CFLAGS }}" CXXFLAGS="${{ matrix.TARGET.CFLAGS }}" LDFLAGS="${{ matrix.TARGET.LDFLAGS }}"
+          make install CFLAGS="${{ matrix.TARGET.CFLAGS }}" CXXFLAGS="${{ matrix.TARGET.CFLAGS }}" LDFLAGS="${{ matrix.TARGET.LDFLAGS }}"
+
+      - name: Test for file
+        shell: bash
+        run: |
+          test -f /opt/cross/bin/mips-nintendo-nu64-as
+          file /opt/cross/bin/mips-nintendo-nu64-as
+          ldd /opt/cross/bin/mips-nintendo-nu64-as
+
+      - name: Upload output
+        uses: actions/upload-artifact@v2
+        with:
+          name: binutils-${{ matrix.TARGET.OS }}
+          path: /opt/cross
